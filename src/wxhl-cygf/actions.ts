@@ -281,7 +281,8 @@ export function composeAppearance(payload: Record<string, any>): string {
 }
 
 /** 构筑载荷 → 变量结构里的「实体」（实体Schema） */
-export function entityFromBuild(build: any, 类型: string, 外貌: string): Record<string, any> {  const 基础 = { STR: 5, AGI: 5, CON: 5, PER: 5, ...(build?.属性基础 ?? {}) };
+export function entityFromBuild(build: any, 类型: string, 外貌: string): Record<string, any> {
+  const 基础 = { STR: 5, AGI: 5, CON: 5, PER: 5, ...(build?.属性基础 ?? {}) };
   const 属性: any = { 基础, 加成: 零属性(), 自定义加成: 零属性(), 未分配属性点: 0 };
   recomputeActual(属性);
   return {
