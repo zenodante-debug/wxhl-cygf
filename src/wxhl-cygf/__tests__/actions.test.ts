@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyAsPlayer, composeAppearance, dispatchAction, ensureWorkshopWorldbook, entityFromBuild, MUTATING_ACTIONS, queued, resetQueueForTest, WORKSHOP_WORLDBOOK_NAME } from '../actions';
+import { applyAsPlayer, bagFromAdvice, composeAppearance, dispatchAction, ensureWorkshopWorldbook, entityFromBuild, MUTATING_ACTIONS, queued, resetQueueForTest, WORKSHOP_WORLDBOOK_NAME } from '../actions';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -385,4 +385,27 @@ describe('aiGenerate · 自定义 API（参照小手机口径）', () => {
     expect(result.text).toBe('{"ok":1}');
     expect(String(spy.mock.calls[1][0].user_input)).toContain('【警告】');
   }, 10000);
+});
+
+describe('bagFromAdvice · 背包兼容（2026-11-11）', () => {
+  it('装备的完整字段（品质/伤害骰/效果）整体保留，不再被剥成描述+数量', () => {
+    const bag = bagFromAdvice({
+      律动残余: { 描述: '晶核', 数量: 1, 品质: '银色', 阶位: '五阶', 主属性加成: 6, 效果: { 律动之梏: '减伤' } },
+    });
+    expect(bag.律动残余.品质).toBe('银色');
+    expect(bag.律动残余.主属性加成).toBe(6);
+    expect(bag.律动残余.效果.律动之梏).toBe('减伤');
+  });
+
+  it('防御「背包里放背包」：值是物品容器 → 展平一层', () => {
+    const bag = bagFromAdvice({ 背包: { 治疗药水: { 描述: '回血', 数量: 3 } } });
+    expect(bag.背包).toBeUndefined();
+    expect(bag.治疗药水).toEqual({ 描述: '回血', 数量: 3 });
+  });
+
+  it('数量缺省 1，数量 ≤ 0 丢弃', () => {
+    const bag = bagFromAdvice({ 苹果: { 描述: '吃' }, 烂苹果: { 描述: '坏', 数量: 0 } });
+    expect(bag.苹果.数量).toBe(1);
+    expect(bag.烂苹果).toBeUndefined();
+  });
 });

@@ -289,15 +289,34 @@ export function composeAppearance(payload: Record<string, any>): string {
     .join('\n');
 }
 
-/** 背包建议（{物品名: {描述, 数量}}）→ 实体/契约者「背包」条目：数量缺省 1，数量 <= 0 的丢掉 */
-export function bagFromAdvice(背包建议: any): Record<string, { 描述: string; 数量: number }> {
-  const 背包: Record<string, { 描述: string; 数量: number }> = {};
-  for (const [名, item] of Object.entries(背包建议 ?? {})) {
-    if (!名) continue;
-    const 原数量 = Number((item as any)?.数量);
-    const 数量 = Number.isFinite(原数量) ? 原数量 : 1;
-    if (数量 <= 0) continue;
-    背包[名] = { 描述: String((item as any)?.描述 ?? ''), 数量 };
+/**
+ * 背包建议（{物品名: {...}}）→ 实体/契约者「背包」条目。
+ * 主卡背包 schema 是 catchall：装备的完整字段（品质/伤害骰/效果…）**必须整体保留**，
+ * 不能剥成只剩描述+数量（2026-11-11 故障机器人那个包就是这么丢属性的）。
+ * 防御「背包里放背包」：值是个物品容器而不是物品（比如 {背包: {...}}），展平一层。
+ * 数量缺省 1，数量 <= 0 的丢掉。
+ */
+export function bagFromAdvice(背包建议: any, 深度 = 0): Record<string, any> {
+  const 背包: Record<string, any> = {};
+  if (!背包建议 || typeof 背包建议 !== 'object') return 背包;
+  for (const [名, item] of Object.entries(背包建议 as Record<string, any>)) {
+    if (!名 || 名 === '背包建议') continue;
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const entry = item as Record<string, any>;
+      // 展平：这是个容器而不是物品（没有 描述/数量 却装着别的物品条目）
+      const 像容器 =
+        !('描述' in entry) &&
+        !('数量' in entry) &&
+        Object.values(entry).some(value => value && typeof value === 'object' && !Array.isArray(value));
+      if (深度 < 2 && 像容器) {
+        Object.assign(背包, bagFromAdvice(entry, 深度 + 1));
+        continue;
+      }
+      const 原数量 = Number(entry.数量);
+      const 数量 = Number.isFinite(原数量) ? 原数量 : 1;
+      if (数量 <= 0) continue;
+      背包[名] = { ...entry, 数量 };
+    }
   }
   return 背包;
 }
