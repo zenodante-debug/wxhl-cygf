@@ -234,6 +234,13 @@ async function handleAction(action: string, payload: Record<string, any>): Promi
     }
     case 'applyBuild':
       return applyBuild(payload);
+    case 'aiGenerate': {
+      const prompt = requireString(payload, 'prompt');
+      if (typeof generateRaw !== 'function') throw new Error('当前环境不支持 AI 生成');
+      const text = await generateRaw({ prompt });
+      if (typeof text !== 'string' || !text.trim()) throw new Error('AI 没有返回内容');
+      return { text };
+    }
     case 'readContractor':
       return readContractor();
     default:

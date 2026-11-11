@@ -12,8 +12,9 @@ export const EventPack = PackManifest.extend({
   事件条目: z
     .array(EntrySchema)
     .min(1, '事件包至少要有一条事件条目')
-    .refine(entries => entries.every(e => e.name.startsWith('事件_')), {
-      message: '事件条目名必须以 事件_ 开头（推荐 事件_<包名>_<事件名>，避免与其他包撞名）',
+    // 控制器条目也可以直接混在事件条目里（从世界书导入时常见）—— EJS/ 开头的一律放行
+    .refine(entries => entries.every(e => e.name.startsWith('事件_') || e.name.startsWith('EJS/')), {
+      message: '事件条目名必须以 事件_ 或 EJS/ 开头（推荐 事件_<包名>_<事件名>，避免与其他包撞名）',
     }),
   控制器条目: ControllerSchema.optional(),
 });

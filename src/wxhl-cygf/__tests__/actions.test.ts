@@ -337,3 +337,21 @@ describe('applyBuild · 装到不同位置（2026-10-12）', () => {
     await expect(dispatchAction('applyBuild', { target: '队友' })).rejects.toThrow(/名字/);
   });
 });
+
+describe('aiGenerate · AI 辅助（只读桥动作）', () => {
+  it('不进互斥队列（只读）', () => {
+    expect(MUTATING_ACTIONS.has('aiGenerate')).toBe(false);
+  });
+
+  it('正常返回文本', async () => {
+    vi.stubGlobal('generateRaw', vi.fn().mockResolvedValue('{\"构筑名\":\"x\"}'));
+    const result = (await dispatchAction('aiGenerate', { prompt: '写一个' })) as any;
+    expect(result.text).toContain('构筑名');
+  });
+
+  it('缺 prompt / 环境不支持 / 空回复 → 响亮报错', async () => {
+    await expect(dispatchAction('aiGenerate', {})).rejects.toThrow('prompt');
+    vi.stubGlobal('generateRaw', vi.fn().mockResolvedValue(''));
+    await expect(dispatchAction('aiGenerate', { prompt: 'x' })).rejects.toThrow('没有返回');
+  });
+});
