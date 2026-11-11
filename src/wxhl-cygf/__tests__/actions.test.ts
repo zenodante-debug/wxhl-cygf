@@ -355,3 +355,34 @@ describe('aiGenerate · AI 辅助（只读桥动作）', () => {
     await expect(dispatchAction('aiGenerate', { prompt: 'x' })).rejects.toThrow('没有返回');
   });
 });
+
+describe('aiGenerate · 自定义 API（参照小手机口径）', () => {
+  it('给了完整 customApi → 走 custom_api 通道', async () => {
+    const spy = vi.fn().mockResolvedValue('{"构筑名":"x"}');
+    vi.stubGlobal('generateRaw', spy);
+    await dispatchAction('aiGenerate', {
+      prompt: '写一个',
+      customApi: { apiurl: 'https://api.deepseek.com', key: 'sk-x', model: 'deepseek-chat' },
+    });
+    const config = spy.mock.calls[0][0];
+    expect(config.custom_api).toEqual({ apiurl: 'https://api.deepseek.com', key: 'sk-x', model: 'deepseek-chat' });
+    expect(config.ordered_prompts).toEqual(['user_input']);
+  });
+
+  it('customApi 缺 url/key → 当没给，走酒馆当前连接（不带 custom_api）', async () => {
+    const spy = vi.fn().mockResolvedValue('{"ok":1}');
+    vi.stubGlobal('generateRaw', spy);
+    await dispatchAction('aiGenerate', { prompt: 'x', customApi: { apiurl: '', key: 'sk' } });
+    expect(spy.mock.calls[0][0].custom_api).toBeUndefined();
+  });
+
+  it('回复不是 JSON → 重试时带上警告前缀', async () => {
+    const spy = vi.fn()
+      .mockResolvedValueOnce('随便聊聊')
+      .mockResolvedValue('{"ok":1}');
+    vi.stubGlobal('generateRaw', spy);
+    const result = (await dispatchAction('aiGenerate', { prompt: 'x' })) as any;
+    expect(result.text).toBe('{"ok":1}');
+    expect(String(spy.mock.calls[1][0].user_input)).toContain('【警告】');
+  }, 10000);
+});

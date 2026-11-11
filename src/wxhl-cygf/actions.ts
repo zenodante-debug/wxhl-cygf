@@ -236,10 +236,12 @@ async function handleAction(action: string, payload: Record<string, any>): Promi
       return applyBuild(payload);
     case 'aiGenerate': {
       const prompt = requireString(payload, 'prompt');
-      if (typeof generateRaw !== 'function') throw new Error('当前环境不支持 AI 生成');
-      const text = await generateRaw({ prompt });
-      if (typeof text !== 'string' || !text.trim()) throw new Error('AI 没有返回内容');
-      return { text };
+      const custom = payload.customApi;
+      const customApi =
+        custom && typeof custom.apiurl === 'string' && custom.apiurl && typeof custom.key === 'string' && custom.key
+          ? { apiurl: custom.apiurl, key: custom.key, model: typeof custom.model === 'string' ? custom.model : '' }
+          : null;
+      return { text: await aiAssistGenerate(prompt, customApi) };
     }
     case 'readContractor':
       return readContractor();
@@ -444,4 +446,34 @@ async function applyBuild(payload: Record<string, any>): Promise<unknown> {
 
   await Mvu.replaceMvuData(数据, { type: 'message', message_id });
   return { ok: true, target, name: 名字, written: 写入 };
+}
+
+// ==================== AI 辅助生成（照 wxhl-003 小手机的 aiGenerate 口径） ====================
+/** 死命令前缀 + 回复含 JSON 校验 + 渐进警告重试；支持自定义 API（custom_api）或酒馆当前连接 */
+export async function aiAssistGenerate(userPrompt: string, customApi: { apiurl: string; key: string; model: string } | null): Promise<string> {
+  if (typeof generateRaw !== 'function') throw new Error('当前环境不支持 AI 生成');
+  const baseConfig: Record<string, unknown> = { should_silence: true, max_chat_history: 0 };
+  if (customApi) {
+    baseConfig.custom_api = customApi;
+    baseConfig.ordered_prompts = ['user_input'];
+  }
+  const 死命令 = '【死命令】你只能返回一个合法的 JSON，不能包含任何 markdown、标题、解释性文字。直接输出 JSON。';
+  let prompt = 死命令 + String.fromCharCode(10,10) + userPrompt;
+  let lastErr = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await generateRaw({ ...baseConfig, user_input: prompt } as any);
+      const text = typeof result === 'string' ? result : String((result as { content?: unknown })?.content ?? '');
+      if (!text.trim()) throw new Error('AI 没有返回内容');
+      if (!/{[\s\S]*}/.test(text)) throw new Error('AI 回复里没有 JSON 对象');
+      return text;
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+      if (attempt < 2) {
+        prompt = '【警告】上次返回不是 JSON。这次必须只输出 JSON，不要任何其他内容。' + String.fromCharCode(10,10) + userPrompt;
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+  }
+  throw new Error(lastErr || 'AI 连续返回了非 JSON 内容');
 }
